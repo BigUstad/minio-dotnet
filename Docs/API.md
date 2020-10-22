@@ -28,9 +28,11 @@ var s3Client = new MinioClient("s3.amazonaws.com",
 | [`bucketExists`](#bucketExists)  | [`copyObject`](#copyObject)  | [`presignedPostPolicy`](#presignedPostPolicy)  |[`setBucketNotification`](#setBucketNotification)  |
 | [`removeBucket`](#removeBucket)  | [`statObject`](#statObject) |   | [`getBucketNotification`](#getBucketNotification)  |
 | [`listObjects`](#listObjects)  | [`removeObject`](#removeObject) |   |  [`removeAllBucketNotification`](#removeAllBucketNotification) |
+| [`listObjectVersions`](#listObjectVersions)  |  |   |   |
 | [`listIncompleteUploads`](#listIncompleteUploads)  | [`removeObjects`](#removeObjects) |   |   |
 | [`listenBucketNotifications`](#listenBucketNotifications) | [`removeIncompleteUpload`](#removeIncompleteUpload) |   |   |
-| | [`selectObjectContent`](#selectObjectContent) |   |   |
+| [`setVersioning`](#setVersioning)  | [`selectObjectContent`](#selectObjectContent) |   |   |
+| [`getVersioning`](#getVersioning)  |  |   |   |
 
 ## 1. Constructors
 
@@ -69,7 +71,76 @@ __Proxy__
 |---|
 |`Chain .WithProxy(proxyObject) to MinIO Client object to use proxy `   |
 
-__Example__
+|  |
+|---|
+|`public MinioClient()`   |
+| Creates MinIO client. This client gives an empty object that can be used with Chaining to populate only the member variables we need.
+  The next important step is to connect to an endpoint. You can chain one of the overloaded method WithEndpoint() to client object to connect.
+  This client object also uses Http access by default. To use Https, chain method WithSSL() to client object to use secure transfer protocol.
+  To use non-anonymous access, chain method WithCredentials() to the client object along with the access key & secret key.
+  Finally chain the method Build() to get the finally built client object.   |
+
+
+__Parameters__
+
+| None   |
+
+
+__Secure Access__
+
+|  |
+|---|
+|`Chain .WithSSL() to MinIO Client object to use https instead of http. `   |
+
+
+__Endpoint__
+
+|  |
+|---|
+|`Chain .WithEndpoint() to MinIO Client object to initialize the endpoint. `   |
+
+
+__Parameters__
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``endpoint``  | _string_ | Server Name (Resolvable) or IP address as the endpoint  |
+
+| Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``MinioClient``  | Listed Exceptions: |
+|        |  |
+
+
+
+__Endpoint__
+
+|  |
+|---|
+|`Chain .WithEndpoint() to MinIO Client object to initialize the endpoint. `   |
+
+
+__Parameters__
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``endpoint``  | _string_ | Server Name (Resolvable) or IP address as the endpoint  |
+| ``port``  | _int_ | Port on which the server is listening  |
+| ``secure``  | _bool_ | If true, use https; if not, use http  |
+
+| Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``MinioClient``  | Listed Exceptions: |
+|        |  |
+
+
+__Proxy__
+
+|  |
+|---|
+|`Chain .WithProxy(proxyObject) to MinIO Client object to use proxy `   |
+
+
+
+__Examples__
 
 
 ### MinIO
@@ -91,7 +162,20 @@ MinioClient minioClient = new MinioClient("my-ip-address:9000", "minio", "minio1
 
 // 4. Initializing minio client with temporary credentials
 MinioClient minioClient = new MinioClient("my-ip-address:9000", "tempuserid", "temppasswd", sessionToken:"sessionToken");
+
+// 5. Using Builder with public MinioClient(), Endpoint, Credentials & Secure connection
+MinioClient minioClient = new MinioClient()
+                                    .WithEndpoint("play.min.io")
+                                    .WithCredentials("Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG")
+                                    .WithSSL()
+                                    .Build()
+// 6. Using Builder with public MinioClient(), Endpoint, Credentials & Secure connection
+MinioClient minioClient = new MinioClient()
+                                    .WithEndpoint("play.min.io", 9000, true)
+                                    .WithCredentials("Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG")
+                                    .Build()
 ```
+
 
 
 ### AWS S3
@@ -102,9 +186,15 @@ MinioClient minioClient = new MinioClient("my-ip-address:9000", "tempuserid", "t
 MinioClient s3Client = new MinioClient("s3.amazonaws.com").WithSSL();
 
 // 2. public MinioClient(String endpoint, String accessKey, String secretKey)
-MinioClient s3Client = new MinioClient("s3.amazonaws.com:80",
+MinioClient s3Client = new MinioClient("s3.amazonaws.com",
                                        accessKey:"YOUR-ACCESSKEYID",
                                        secretKey:"YOUR-SECRETACCESSKEY").WithSSL();
+// 3. Using Builder with public MinioClient(), Endpoint, Credentials & Secure connection
+MinioClient minioClient = new MinioClient()
+                                    .WithEndpoint("s3.amazonaws.com")
+                                    .WithCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY")
+                                    .WithSSL()
+                                    .Build()
 ```
 
 ## 2. Bucket operations
@@ -158,6 +248,55 @@ catch (MinioException e)
    Console.WriteLine("Error occurred: " + e);
 }
 ```
+
+### MakeBucketAsync(MakeBucketArgs args)
+`Task MakeBucketAsync(MakeBucketArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Creates a new bucket.
+
+
+__Parameters__
+
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _MakeBucketArgs_ | Arguments Object - name, location.  |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+| Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``Task``  | Listed Exceptions: |
+|        |  ``InvalidBucketNameException`` : upon invalid bucket name |
+|        | ``ConnectionException`` : upon connection error            |
+|        | ``AccessDeniedException`` : upon access denial            |
+|        | ``RedirectionException`` : upon redirection by server |
+|        | ``InternalClientException`` : upon internal library error        |
+
+
+__Example__
+
+
+```cs
+try
+{
+   // Create bucket if it doesn't exist.
+   bool found = await minioClient.BucketExistsAsync(bktExistArgs);
+   if (found)
+   {
+      Console.WriteLine(bktExistArgs.BucketName +" already exists");
+   }
+   else
+   {
+     // Create bucket 'my-bucketname'.
+     await minioClient.MakeBucketAsync(mkBktArgs);
+     Console.WriteLine(mkBktArgs.BucketName + " is created successfully");
+   }
+}
+catch (MinioException e)
+{
+   Console.WriteLine("Error occurred: " + e);
+}
+```
+
 
 <a name="listBuckets"></a>
 ### ListBucketsAsync()
@@ -245,6 +384,49 @@ catch (MinioException e)
 ```
 
 
+### BucketExistsAsync(BucketExistsArgs)
+
+`Task<bool> BucketExistsAsync(BucketExistsArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Checks if a bucket exists.
+
+
+__Parameters__
+
+
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _BucketExistsArgs_  | Argument object - bucket name.  |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+
+| Return Type	  | Exceptions	  |
+|:--- |:--- |
+|  ``Task<bool>`` : true if the bucket exists  | Listed Exceptions: |
+|        |  ``InvalidBucketNameException`` : upon invalid bucket name |
+|        | ``ConnectionException`` : upon connection error            |
+|        | ``AccessDeniedException`` : upon access denial            |
+|        | ``ErrorResponseException`` : upon unsuccessful execution            |
+|        | ``InternalClientException`` : upon internal library error        |
+
+
+
+__Example__
+
+
+```cs
+try
+{
+   // Check whether 'my-bucketname' exists or not.
+   bool found = await minioClient.BucketExistsAsync(args);
+   Console.WriteLine(args.BucketName + " " + ((found == true) ? "exists" : "does not exist"));
+}
+catch (MinioException e)
+{
+   Console.WriteLine("[Bucket]  Exception: {0}", e);
+}
+```
+
 <a name="removeBucket"></a>
 ### RemoveBucketAsync(string bucketName)
 
@@ -258,7 +440,7 @@ NOTE: -  removeBucket does not delete the objects inside the bucket. The objects
 
 __Parameters__
 
-
+ 
 |Param   | Type	  | Description  |
 |:--- |:--- |:--- |
 | ``bucketName``  | _string_  | Name of the bucket  |
@@ -301,10 +483,161 @@ catch(MinioException e)
 }
 ```
 
-<a name="listObjects"></a>
-### ListObjectsAsync(string bucketName, string prefix = null, bool recursive = true)
+### RemoveBucketAsync(RemoveBucketArgs args)
 
-`IObservable<Item> ListObjectsAsync(string bucketName, string prefix = null, bool recursive = false, CancellationToken cancellationToken = default(CancellationToken))`
+`Task RemoveBucketAsync(RemoveBucketArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Removes a bucket.
+
+
+NOTE: -  removeBucket does not delete the objects inside the bucket. The objects need to be deleted using the removeObject API.
+
+
+__Parameters__
+
+ 
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _RemoveBucketArgs_  | Arguments Object - bucket name  |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+
+| Return Type	  | Exceptions	  |
+|:--- |:--- |
+|  Task  | Listed Exceptions: |
+|        | ``InvalidBucketNameException`` : upon invalid bucket name |
+|        | ``ConnectionException`` : upon connection error            |
+|        | ``AccessDeniedException`` : upon access denial            |
+|        | ``ErrorResponseException`` : upon unsuccessful execution            |
+|        | ``InternalClientException`` : upon internal library error        |
+|        | ``BucketNotFoundException`` : upon missing bucket          |
+
+
+__Example__
+
+
+```cs
+try
+{
+    // Check if my-bucket exists before removing it.
+    bool found = await minioClient.BucketExistsAsync(bktExistsArgs);
+    if (found)
+    {
+        // Remove bucket my-bucketname. This operation will succeed only if the bucket is empty.
+        await minioClient.RemoveBucketAsync(rmBktArgs);
+        Console.WriteLine(rmBktArgs.BucketName + " is removed successfully");
+    }
+    else
+    {
+        Console.WriteLine(bktExistsArgs.BucketName + " does not exist");
+    }
+}
+catch(MinioException e)
+{
+    Console.WriteLine("Error occurred: " + e);
+}
+```
+
+<a name="getVersioning"></a>
+### public async Task<VersioningConfiguration> GetVersioningAsync(GetVersioningArgs args)
+
+`Task<VersioningConfiguration> GetVersioningAsync(GetVersioningArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Get versioning information for a bucket.
+
+__Parameters__
+
+
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _GetVersioningArgs_  | Arguments Object - bucket name. |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+
+|Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``VersioningConfiguration``:VersioningConfiguration with information populated from response.  | _None_  |
+
+
+__Example__
+
+
+```cs
+try
+{
+    // Check whether 'mybucket' exists or not.
+    bool found = minioClient.BucketExistsAsync(bktExistsArgs);
+    if (found)
+    {
+        var args = new GetVersioningArgs("mybucket")
+                                .WithSSL();
+        VersioningConfiguration vc = await minio.GetVersioningInfoAsync(args);
+    }
+    else
+    {
+        Console.WriteLine(bktExistsArgs.BucketName + " does not exist");
+    }
+}
+catch (MinioException e)
+{
+    Console.WriteLine("Error occurred: " + e);
+}
+```
+
+
+<a name="setVersioning"></a>
+### public async Task SetVersioningAsync(SetVersioningArgs args)
+
+`Task SetVersioningAsync(SetVersioningArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Set versioning to Enabled or Suspended for a bucket.
+
+__Parameters__
+
+
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _SetVersioningArgs_  | Arguments Object - bucket name, versioning status. |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+
+|Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``Task``:  | _None_  |
+
+
+__Example__
+
+
+```cs
+try
+{
+    // Check whether 'mybucket' exists or not.
+    bool found = minioClient.BucketExistsAsync(bktExistsArgs);
+    if (found)
+    {
+        var args = new SetVersioningArgs("mybucket")
+                                .WithSSL()
+                                .WithVersioningEnabled();
+
+        await minio.SetVersioningAsync(setArgs);
+    }
+    else
+    {
+        Console.WriteLine(bktExistsArgs.BucketName + " does not exist");
+    }
+}
+catch (MinioException e)
+{
+    Console.WriteLine("Error occurred: " + e);
+}
+```
+
+
+<a name="listObjects"></a>
+### ListObjectsAsync(ListObjectArgs args)
+
+`IObservable<Item> ListObjectsAsync(ListObjectArgs args, CancellationToken cancellationToken = default(CancellationToken))`
 
 Lists all objects in a bucket.
 
@@ -313,9 +646,7 @@ __Parameters__
 
 |Param   | Type	  | Description  |
 |:--- |:--- |:--- |
-| ``bucketName``  | _string_  | Name of the bucket  |
-| ``prefix``  | _string_  | Prefix string. List objects whose name starts with ``prefix`` |
-| ``recursive``  | _bool_  | when false, emulates a directory structure where each listing returned is either a full object or part of the object's key up to the first '/'. All objects with the same prefix up to the first '/' will be merged into one entry. Defaults to `false`|
+| ``args``  | _ListObjectArgs_  | ListObjectArgs object - encapsulates bucket name, prefix, show recursively, show versions. |
 | ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
 
 
@@ -335,9 +666,68 @@ try
     if (found)
     {
         // List objects from 'my-bucketname'
-        IObservable<Item> observable = minioClient.ListObjectsAsync("mybucket", "prefix", true);
+        ListObjectArgs args = new ListObjectArgs()
+                                        .WithBucket("mybucket")
+                                        .WithPrefix("prefix")
+                                        .WithRecursive(true);
+        IObservable<Item> observable = minioClient.ListObjectsAsync(args);
         IDisposable subscription = observable.Subscribe(
 				item => Console.WriteLine("OnNext: {0}", item.Key),
+				ex => Console.WriteLine("OnError: {0}", ex.Message),
+				() => Console.WriteLine("OnComplete: {0}"));
+    }
+    else
+    {
+        Console.WriteLine("mybucket does not exist");
+    }
+}
+catch (MinioException e)
+{
+    Console.WriteLine("Error occurred: " + e);
+}
+```
+
+
+<a name="listObjectVersions"></a>
+### ListObjectVersionsAsync(ListObjectArgs args)
+
+`IObservable<VersionItem> ListObjectVersionsAsync(ListObjectArgs args, CancellationToken cancellationToken = default(CancellationToken))`
+
+Lists all objects along with multiple versions (if any) in a bucket.
+
+__Parameters__
+
+
+|Param   | Type	  | Description  |
+|:--- |:--- |:--- |
+| ``args``  | _ListObjectArgs_  | ListObjectArgs object - encapsulates bucket name, prefix, show recursively, show versions. |
+| ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
+
+
+|Return Type	  | Exceptions	  |
+|:--- |:--- |
+| ``IObservable<VersionItem>``: an Observable of Versioned Items.  | _None_  |
+
+
+__Example__
+
+
+```cs
+try
+{
+    // Check whether 'mybucket' exists or not.
+    bool found = minioClient.BucketExistsAsync("mybucket");
+    if (found)
+    {
+        // List objects from 'my-bucketname'
+        ListObjectArgs args = new ListObjectArgs()
+                                        .WithBucket("mybucket")
+                                        .WithPrefix("prefix")
+                                        .WithRecursive(true)
+                                        .WithVersions(true)
+        IObservable<VersionItem> observable = minioClient.ListObjectVersionsAsync(args, true);
+        IDisposable subscription = observable.Subscribe(
+				item => Console.WriteLine("OnNext: {0} - {1}", item.Key, item.VersionId),
 				ex => Console.WriteLine("OnError: {0}", ex.Message),
 				() => Console.WriteLine("OnComplete: {0}"));
     }
@@ -454,8 +844,8 @@ catch (MinioException e)
 ```
 
 <a name="getBucketPolicy"></a>
-### GetPolicyAsync(string bucketName)
-`Task<String> GetPolicyAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))`
+### GetPolicyAsync(GetPolicyArgs args)
+`Task<String> GetPolicyAsync(GetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))`
 
 Get bucket policy.
 
@@ -464,7 +854,7 @@ __Parameters__
 
 |Param   | Type   | Description  |
 |:--- |:--- |:--- |
-| ``bucketName``  | _string_  | Name of the bucket.  |
+| ``args``  | _GetPolicyArgs_  | GetPolicyArgs object encapsulating bucket name.  |
 | ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
 
 
@@ -485,8 +875,10 @@ __Example__
 ```cs
 try
 {
-    String policyJson = await minioClient.GetPolicyAsync("myBucket");
-    Console.WriteLine("Current policy: " + policy.GetType().ToString());
+    GetPolicyArgs args = new GetPolicyArgs()
+                                    .WithBucket("myBucket");
+    String policyJson = await minioClient.GetPolicyAsync(args);
+    Console.WriteLine("Current policy: " + policyJson);
 }
 catch (MinioException e)
 {
@@ -495,8 +887,8 @@ catch (MinioException e)
 ```
 
 <a name="setBucketPolicy"></a>
-### SetPolicyAsync(string bucketName, string policyJson)
-`Task SetPolicyAsync(string bucketName, string policyJson, CancellationToken cancellationToken = default(CancellationToken))`
+### SetPolicyAsync(SetPolicyArgs args)
+`Task SetPolicyAsync(SetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))`
 
 Set policy on bucket.
 
@@ -504,8 +896,7 @@ __Parameters__
 
 |Param   | Type   | Description  |
 |:--- |:--- |:--- |
-| ``bucketName``  | _string_  | Name of the bucket  |
-| ``policyJson``  | _string_  | Policy as a json string |
+| ``args``  | _SetPolicyArgs_  | SetPolicyArgs object encapsulating bucket name, Policy as a json string.  |
 | ``cancellationToken``| _System.Threading.CancellationToken_ | Optional parameter. Defaults to default(CancellationToken) |
 
 
@@ -526,7 +917,10 @@ __Example__
 try
 {
     string policyJson = $@"{{""Version"":""2012-10-17"",""Statement"":[{{""Action"":[""s3:GetBucketLocation""],""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Resource"":[""arn:aws:s3:::{bucketName}""],""Sid"":""""}},{{""Action"":[""s3:ListBucket""],""Condition"":{{""StringEquals"":{{""s3:prefix"":[""foo"",""prefix/""]}}}},""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Resource"":[""arn:aws:s3:::{bucketName}""],""Sid"":""""}},{{""Action"":[""s3:GetObject""],""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Resource"":[""arn:aws:s3:::{bucketName}/foo*"",""arn:aws:s3:::{bucketName}/prefix/*""],""Sid"":""""}}]}}";
-    await minioClient.SetPolicyAsync("myBucket", policyJson);
+    SetPolicyArgs args = new SetPolicyArgs()
+                                    .WithBucket("myBucket")
+                                    .WithPolicy(policyJson);
+    await minioClient.SetPolicyAsync(args);
 }
 catch (MinioException e)
 {

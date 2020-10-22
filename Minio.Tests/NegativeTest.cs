@@ -16,6 +16,7 @@
  */
 
 using System;
+using System.Net;
 using System.Threading.Tasks;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -31,9 +32,14 @@ namespace Minio.Tests
         public async Task TestNoConnectionError()
         {
             // invalid uri
-            var minio = new MinioClient("localhost:12121");
+            var minio = new MinioClient()
+                                .WithEndpoint("localhost", 12121)
+                                .WithCredentials("minio", "minio")
+                                .Build();
+            var args = new BucketExistsArgs()
+                                .WithBucket("test");
 
-            var ex = await Assert.ThrowsExceptionAsync<ConnectionException>(() => minio.BucketExistsAsync("test"));
+            var ex = await Assert.ThrowsExceptionAsync<ConnectionException>(() => minio.BucketExistsAsync(args));
             Assert.IsNotNull(ex.ServerResponse);
         }
 
@@ -41,8 +47,13 @@ namespace Minio.Tests
         public async Task TestInvalidBucketNameError()
         {
             var badName = new string('A', 260);
-            var minio = new MinioClient("play.min.io", "Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG");
-            await Assert.ThrowsExceptionAsync<InvalidBucketNameException>(() => minio.BucketExistsAsync(badName));
+            var minio = new MinioClient()
+                                .WithEndpoint("play.min.io")
+                                .WithCredentials("Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG")
+                                .Build();
+            var args = new BucketExistsArgs()
+                                    .WithBucket(badName);
+            await Assert.ThrowsExceptionAsync<InvalidBucketNameException>(() => minio.BucketExistsAsync(args));
         }
 
         [TestMethod]
@@ -50,14 +61,29 @@ namespace Minio.Tests
         {
             var badName = new string('A', 260);
             var bucketName = Guid.NewGuid().ToString("N");
-            var minio = new MinioClient("play.min.io", "Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG");
+            var minio = new MinioClient()
+                                .WithEndpoint("play.min.io")
+                                .WithCredentials("Q3AM3UQ867SPQQA43P2F", "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG")
+                                .Build();
 
             try
             {
-                await minio.MakeBucketAsync(bucketName);
+                const int tryCount = 5;
+                var args = new MakeBucketArgs()
+                                    .WithBucket(bucketName);
+                await minio.MakeBucketAsync(args);
 
                 var ex = await Assert.ThrowsExceptionAsync<InvalidObjectNameException>(
                     () => minio.StatObjectAsync(bucketName, badName));
+                for(int i=0;
+                        i < tryCount &&
+                            (ex.ServerResponse != null &&
+                                ex.ServerResponse.StatusCode.Equals(HttpStatusCode.ServiceUnavailable)); ++i)
+                {
+                    ex = await Assert.ThrowsExceptionAsync<InvalidObjectNameException>(
+                        () => minio.StatObjectAsync(bucketName, badName));
+
+                }
                 Assert.AreEqual(ex.Response.Code, "InvalidObjectName");
 
                 ex = await Assert.ThrowsExceptionAsync<InvalidObjectNameException>(
@@ -66,7 +92,9 @@ namespace Minio.Tests
             }
             finally
             {
-                await minio.RemoveBucketAsync(bucketName);
+                var args = new RemoveBucketArgs()
+                                        .WithBucket(bucketName);
+                await minio.RemoveBucketAsync(args);
             }
         }
     }

@@ -20,100 +20,39 @@ using Minio.Exceptions;
 using RestSharp;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using System.Xml.Serialization;
-using System.Web;
+using Minio.Helper;
 
 namespace Minio
 {
     public partial class MinioClient : IBucketOperations
     {
         /// <summary>
-        /// List all objects in a bucket
+        /// Check if a private bucket with the given name exists.
         /// </summary>
-        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
-        /// <returns>Task with an iterator lazily populated with objects</returns>
-        public async Task<ListAllMyBucketsResult> ListBucketsAsync(CancellationToken cancellationToken = default(CancellationToken))
-        {
-            var request = await this.CreateRequest(Method.GET, resourcePath: "/").ConfigureAwait(false);
-            var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
-
-            ListAllMyBucketsResult bucketList = new ListAllMyBucketsResult();
-            if (HttpStatusCode.OK.Equals(response.StatusCode))
-            {
-                var contentBytes = System.Text.Encoding.UTF8.GetBytes(response.Content);
-                using (var stream = new MemoryStream(contentBytes))
-                    bucketList = (ListAllMyBucketsResult)new XmlSerializer(typeof(ListAllMyBucketsResult)).Deserialize(stream);
-                return bucketList;
-            }
-            return bucketList;
-        }
-
-        /// <summary>
-        /// Create a private bucket with the given name.
-        /// </summary>
-        /// <param name="bucketName">Name of the new bucket</param>
-        /// <param name="location">Region</param>
+        /// <param name="args">BucketExistsArgs Arguments Object which has bucket identifier information - bucket name, region</param>
         /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
         /// <returns> Task </returns>
-        /// <exception cref="InvalidBucketNameException">When bucketName is null</exception>
-        public async Task MakeBucketAsync(string bucketName, string location = "us-east-1", CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<bool> BucketExistsAsync(BucketExistsArgs args, CancellationToken cancellationToken = default(CancellationToken))
         {
-            if (bucketName == null)
-            {
-                throw new InvalidBucketNameException(bucketName, "bucketName cannot be null");
-            }
-
-            if (location == "us-east-1")
-            {
-                if (this.Region != string.Empty)
-                {
-                    location = this.Region;
-                }
-            }
-
-            // Set Target URL
-            Uri requestUrl = RequestUtil.MakeTargetURL(this.BaseUrl, this.Secure, location);
-            SetTargetURL(requestUrl);
-
-            var request = new RestRequest("/" + bucketName, Method.PUT)
-            {
-                XmlSerializer = new RestSharp.Serializers.DotNetXmlSerializer(),
-                RequestFormat = DataFormat.Xml
-            };
-            // ``us-east-1`` is not a valid location constraint according to amazon, so we skip it.
-            if (location != "us-east-1")
-            {
-                CreateBucketConfiguration config = new CreateBucketConfiguration(location);
-                request.AddBody(config);
-            }
-
-            var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Returns true if the specified bucketName exists, otherwise returns false.
-        /// </summary>
-        /// <param name="bucketName">Bucket to test existence of</param>
-        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
-        /// <returns>Task that returns true if exists and user has access</returns>
-        public async Task<bool> BucketExistsAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))
-        {
+            args.Validate();
             try
             {
-                if (bucketName == null)
+                RestRequest request = await this.CreateRequest( Method.HEAD, args.BucketName ).ConfigureAwait(false);
+                await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InternalClientException ice)
+            {
+                if ( (ice.ServerResponse != null && HttpStatusCode.NotFound.Equals(ice.ServerResponse.StatusCode)) 
+                        || ice.ServerResponse == null )
                 {
-                    throw new InvalidBucketNameException(bucketName, "bucketName cannot be null");
+                    return false;
                 }
-                var request = await this.CreateRequest(Method.HEAD, bucketName).ConfigureAwait(false);
-                var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -126,17 +65,282 @@ namespace Minio
             return true;
         }
 
+
+        /// <summary>
+        /// Remove the bucket with the given name.
+        /// </summary>
+        /// <param name="args">RemoveBucketArgs Arguments Object which has bucket identifier information like bucket name .etc.</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns> Task </returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        public async Task RemoveBucketAsync(RemoveBucketArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            args.Validate();
+            RestRequest request = await this.CreateRequest(Method.DELETE, args.BucketName).ConfigureAwait(false);
+            await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken);
+        }
+
+        /// <summary>
+        /// Create a bucket with the given name.
+        /// </summary>
+        /// <param name="args">MakeBucketArgs Arguments Object that has bucket info like name, location. etc</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns> Task </returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        public async Task MakeBucketAsync(MakeBucketArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            args.Validate();
+            RestRequest request = new RestRequest("/" + args.BucketName, Method.PUT);
+            if (string.IsNullOrEmpty(args.Location))
+            {
+                args.Location = this.Region;
+            }
+            // Set Target URL for MakeBucket
+            Uri requestUrl = RequestUtil.MakeTargetURL(this.BaseUrl, this.Secure, args.Location);
+            SetTargetURL(requestUrl);
+            // Set Authenticator, if necessary.
+            if (string.IsNullOrEmpty(this.Region) && !s3utils.IsAmazonEndPoint(this.BaseUrl) && args.Location != "us-east-1" && this.restClient != null)
+            {
+                this.restClient.Authenticator = new V4Authenticator(this.Secure, this.AccessKey, this.SecretKey, region: args.Location, sessionToken: this.SessionToken);
+            }
+            await this.ExecuteTaskAsync(this.NoErrorHandlers, args.BuildRequest(request), cancellationToken);
+        }
+
+
+        /// <summary>
+        /// Get Versioning information on the bucket with given bucket name
+        /// </summary>
+        /// <param name="args">GetVersioningArgs takes bucket as argument. </param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns> GetVersioningResponse with information populated from REST response </returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        public async Task<VersioningConfiguration> GetVersioningAsync(GetVersioningArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            args.Validate();
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            IRestResponse response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            GetVersioningResponse versioningResponse = new GetVersioningResponse(response.StatusCode, response.Content);
+            return versioningResponse.VersioningConfig;
+        }
+
+
+        /// <summary>
+        /// Set Versioning as specified on the bucket with given bucket name
+        /// </summary>
+        /// <param name="args">SetVersioningArgs Arguments Object with information like Bucket name, Versioning configuration</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns> Task </returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        public async Task  SetVersioningAsync(SetVersioningArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            args.Validate();
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Returns current policy stored on the server for this bucket
+        /// </summary>
+        /// <param name="args">GetPolicyArgs object has information like Bucket name.</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>Task that returns the Bucket policy as a json string</returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        /// <exception cref="UnexpectedMinioException">When a policy is not set</exception>
+        public async Task<string> GetPolicyAsync(GetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            IRestResponse response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            GetPolicyResponse getPolicyResponse = new GetPolicyResponse(response.StatusCode, response.Content);
+            return getPolicyResponse.PolicyJsonString;
+        }
+
+
+        /// <summary>
+        /// Sets the current bucket policy
+        /// </summary>
+        /// <param name="args">SetPolicyArgs object has information like Bucket name and the policy to set in Json format</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>Task to set a policy</returns>
+        public async Task SetPolicyAsync(SetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+        }
+
+
+        /// <summary>
+        /// Removes the current bucket policy
+        /// </summary>
+        /// <param name="args">RemovePolicyArgs object has information like Bucket name</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>Task to set a policy</returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is invalid</exception>
+        /// <exception cref="UnexpectedMinioException">When a policy is not set</exception>
+        public async Task RemovePolicyAsync(RemovePolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+        }
+
+
+        /// <summary>
+        /// List all objects in a bucket
+        /// List all the buckets for the current Endpoint URL
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>Task with an iterator lazily populated with objects</returns>
+        public async Task<ListAllMyBucketsResult> ListBucketsAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var request = await this.CreateRequest(Method.GET, resourcePath: "/").ConfigureAwait(false);
+            var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            ListBucketsResponse listBucketsResponse = new ListBucketsResponse(response.StatusCode, response.Content);
+            return listBucketsResponse.BucketsResult;
+        }
+
+
+        /// <summary>
+        /// List all objects non-recursively in a bucket with a given prefix, optionally emulating a directory
+        /// </summary>
+        /// <param name="args">ListObjectsArgs Arguments Object with information like Bucket name, prefix, recursive listing, versioning</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>An observable of items that client can subscribe to</returns>
+        public IObservable<Item> ListObjectsAsync(ListObjectsArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return Observable.Create<Item>(
+              async (obs, ct) =>
+              {
+                  bool isRunning = true;
+                  var delimiter = (args.Recursive)? string.Empty: "/";
+                  string marker = string.Empty;
+                  using(var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ct))
+                  {
+                    while (isRunning)
+                    {
+                        GetObjectListArgs goArgs = new GetObjectListArgs()
+                                                            .WithBucket(args.BucketName)
+                                                            .WithPrefix(args.Prefix)
+                                                            .WithDelimiter(delimiter)
+                                                            .WithVersions(false)
+                                                            .WithMarker(marker);
+                        Tuple<ListBucketResult, List<Item>> objectList = await GetObjectListAsync(goArgs, cts.Token).ConfigureAwait(false);
+                        ListObjectsItemResponse listObjectsItemResponse = new ListObjectsItemResponse(args, objectList, obs);
+                        marker = listObjectsItemResponse.NextMarker;
+                        isRunning = objectList.Item1.IsTruncated;
+                        cts.Token.ThrowIfCancellationRequested();
+                    }
+                  }
+              });
+        }
+
+
+        /// <summary>
+        /// List all objects along with versions non-recursively in a bucket with a given prefix, optionally emulating a directory
+        /// </summary>
+        /// <param name="args">ListObjectsArgs Arguments Object with information like Bucket name, prefix, recursive listing, versioning</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>An observable of items that client can subscribe to</returns>
+        public IObservable<VersionItem> ListObjectVersionsAsync(ListObjectsArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return Observable.Create<VersionItem>(
+              async (obs, ct) =>
+              {
+                  bool isRunning = true;
+                  var delimiter = (args.Recursive) ? string.Empty : "/";
+                  string marker = string.Empty;
+                  using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ct))
+                  {
+                      while (isRunning)
+                      {
+                          GetObjectListArgs goArgs = new GetObjectListArgs()
+                                                              .WithBucket(args.BucketName)
+                                                              .WithPrefix(args.Prefix)
+                                                              .WithDelimiter(delimiter)
+                                                              .WithVersions(args.Versions)
+                                                              .WithMarker(marker);
+                          Tuple<ListVersionsResult, List<VersionItem>> objectList = await this.GetObjectVersionsListAsync(goArgs, cts.Token).ConfigureAwait(false);
+                          ListObjectVersionResponse listObjectsItemResponse = new ListObjectVersionResponse(args, objectList, obs);
+                          marker = listObjectsItemResponse.NextMarker;
+                          isRunning = objectList.Item1.IsTruncated;
+                          cts.Token.ThrowIfCancellationRequested();
+                      }
+                  }
+              });
+        }
+
+
+        /// <summary>
+        /// Gets the list of objects in the bucket filtered by prefix
+        /// </summary>
+        /// <param name="args">GetObjectListArgs Arguments Object with information like Bucket name, prefix, delimiter, marker, versions(get version IDs of the objects)</param>
+        /// <returns>Task with a tuple populated with objects</returns>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        private async Task<Tuple<ListBucketResult, List<Item>>> GetObjectListAsync(GetObjectListArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            IRestResponse response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            GetObjectsListResponse getObjectsListResponse = new GetObjectsListResponse(response.StatusCode, response.Content);
+            return getObjectsListResponse.ObjectsTuple;
+        }
+
+
+        /// <summary>
+        /// Gets the list of objects along with version IDs in the bucket filtered by prefix
+        /// </summary>
+        /// <param name="args">GetObjectListArgs Arguments Object with information like Bucket name, prefix, delimiter, marker, versions(get version IDs of the objects)</param>
+        /// <returns>Task with a tuple populated with objects</returns>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        private async Task<Tuple<ListVersionsResult, List<VersionItem>>> GetObjectVersionsListAsync(GetObjectListArgs args, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            RestRequest request = await this.CreateRequest(args).ConfigureAwait(false);
+            IRestResponse response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            GetObjectsVersionsListResponse getObjectsListResponse = new GetObjectsVersionsListResponse(response.StatusCode, response.Content);
+            return getObjectsListResponse.ObjectsTuple;
+        }
+
+
+        /// <summary>
+        /// Create a private bucket with the given name.
+        /// </summary>
+        /// <param name="bucketName">Name of the new bucket</param>
+        /// <param name="location">Region</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns> Task </returns>
+        /// <exception cref="InvalidBucketNameException">When bucketName is null</exception>
+        [Obsolete("Use MakeBucketAsync method with MakeBucketArgs object. Refer MakeBucket example code.")]
+        public async Task MakeBucketAsync(string bucketName, string location = "us-east-1", CancellationToken cancellationToken = default(CancellationToken))
+        {
+            MakeBucketArgs args = new MakeBucketArgs()
+                                            .WithBucket(bucketName)
+                                            .WithLocation(location);
+            await this.MakeBucketAsync(args, cancellationToken);
+        }
+
+        /// <summary>
+        /// Returns true if the specified bucketName exists, otherwise returns false.
+        /// </summary>
+        /// <param name="bucketName">Bucket to test existence of</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>Task that returns true if exists and user has access</returns>
+        [Obsolete("Use BucketExistsAsync method with BucketExistsArgs object. Refer BucketExists example code.")]
+        public async Task<bool> BucketExistsAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            BucketExistsArgs args = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            return await BucketExistsAsync(args, cancellationToken);
+        }
+
         /// <summary>
         /// Remove a bucket
         /// </summary>
         /// <param name="bucketName">Name of bucket to remove</param>
         /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
         /// <returns>Task</returns>
+        [Obsolete("Use RemoveBucketAsync method with RemoveBucketArgs object. Refer RemoveBucket example code.")]
         public async Task RemoveBucketAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var request = await this.CreateRequest(Method.DELETE, bucketName).ConfigureAwait(false);
-
-            var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            RemoveBucketArgs args = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
+            await RemoveBucketAsync(args, cancellationToken);
         }
 
         /// <summary>
@@ -149,60 +353,11 @@ namespace Minio
         /// <returns>An observable of items that client can subscribe to</returns>
         public IObservable<Item> ListObjectsAsync(string bucketName, string prefix = null, bool recursive = false, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return Observable.Create<Item>(
-              async (obs, ct) =>
-              {
-                  bool isRunning = true;
-                  string marker = null;
-
-                  var delimiter = "/";
-                  if (recursive)
-                  {
-                      delimiter = string.Empty;
-                  }
-
-                  using(var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ct)) {
-                    while (isRunning)
-                    {
-                        Tuple<ListBucketResult, List<Item>> result = await GetObjectListAsync(bucketName, prefix, delimiter, marker, cts.Token).ConfigureAwait(false);
-                        Item lastItem = null;
-                        foreach (Item item in result.Item2)
-                        {
-                            lastItem = item;
-                            if (result.Item1.EncodingType == "url")
-                            {
-                                item.Key = HttpUtility.UrlDecode(item.Key);
-                            }
-                            obs.OnNext(item);
-                        }
-                        if (result.Item1.NextMarker != null)
-                        {
-                            if (result.Item1.EncodingType == "url")
-                            {
-                                marker = HttpUtility.UrlDecode(result.Item1.NextMarker);
-                            }
-                            else
-                            {
-                                marker = result.Item1.NextMarker;
-                            }
-                        }
-                        else if (lastItem != null)
-                        {
-                            if (result.Item1.EncodingType == "url")
-                            {
-                                marker = HttpUtility.UrlDecode(lastItem.Key);
-                            }
-                            else
-                            {
-                                marker = lastItem.Key;
-                            }
-                        }
-                        isRunning = result.Item1.IsTruncated;
-                        cts.Token.ThrowIfCancellationRequested();
-                    }
-                  }
-
-              });
+            ListObjectsArgs args = new ListObjectsArgs()
+                                            .WithBucket(bucketName)
+                                            .WithPrefix(prefix)
+                                            .WithRecursive(recursive);
+            return this.ListObjectsAsync(args, cancellationToken);
         }
 
         /// <summary>
@@ -218,62 +373,14 @@ namespace Minio
         {
             var queryMap = new Dictionary<string,string>();
             // null values are treated as empty strings.
-            if (delimiter == null)
-            {
-                delimiter = string.Empty;
-            }
-
-            if (prefix == null)
-            {
-                prefix = string.Empty;
-            }
-
-            if (marker == null)
-            {
-                marker = string.Empty;
-            }
-            
-            var request = await this.CreateRequest(Method.GET,
-                                                     bucketName)
-                                        .ConfigureAwait(false);
-            request.AddQueryParameter("delimiter",delimiter);
-            request.AddQueryParameter("prefix",prefix);
-            request.AddQueryParameter("max-keys", "1000");
-            request.AddQueryParameter("marker",marker);
-            request.AddQueryParameter("encoding-type","url");
-  
-            var response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
-
-            var contentBytes = System.Text.Encoding.UTF8.GetBytes(response.Content);
-            ListBucketResult listBucketResult = null;
-            using (var stream = new MemoryStream(contentBytes))
-            {
-                listBucketResult = (ListBucketResult)new XmlSerializer(typeof(ListBucketResult)).Deserialize(stream);
-            }
-
-            XDocument root = XDocument.Parse(response.Content);
-
-            var items = from c in root.Root.Descendants("{http://s3.amazonaws.com/doc/2006-03-01/}Contents")
-                        select new Item
-                        {
-                            Key = c.Element("{http://s3.amazonaws.com/doc/2006-03-01/}Key").Value,
-                            LastModified = c.Element("{http://s3.amazonaws.com/doc/2006-03-01/}LastModified").Value,
-                            ETag = c.Element("{http://s3.amazonaws.com/doc/2006-03-01/}ETag").Value,
-                            Size = ulong.Parse(c.Element("{http://s3.amazonaws.com/doc/2006-03-01/}Size").Value, CultureInfo.CurrentCulture),
-                            IsDir = false
-                        };
-
-            var prefixes = from c in root.Root.Descendants("{http://s3.amazonaws.com/doc/2006-03-01/}CommonPrefixes")
-                           select new Item
-                           {
-                               Key = c.Element("{http://s3.amazonaws.com/doc/2006-03-01/}Prefix").Value,
-                               IsDir = true
-                           };
-
-            items = items.Concat(prefixes);
-
-            return Tuple.Create(listBucketResult, items.ToList());
+            GetObjectListArgs args = new GetObjectListArgs()
+                                            .WithBucket(bucketName)
+                                            .WithPrefix(prefix)
+                                            .WithDelimiter(delimiter)
+                                            .WithMarker(marker);
+            return await this.GetObjectListAsync(args, cancellationToken);
         }
+
 
         /// <summary>
         /// Returns current policy stored on the server for this bucket
@@ -283,23 +390,11 @@ namespace Minio
         /// <returns>Task that returns the Bucket policy as a json string</returns>
         public async Task<string> GetPolicyAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))
         {
-            IRestResponse response = null;
-
-            var request = await this.CreateRequest(Method.GET, bucketName,
-                                 contentType: "application/json")
-                            .ConfigureAwait(false);
-            request.AddQueryParameter("policy","");
-            string policyString = null;
-            response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
-            var contentBytes = System.Text.Encoding.UTF8.GetBytes(response.Content);
-
-            using (var stream = new MemoryStream(contentBytes))
-            using (var streamReader = new StreamReader(stream))
-            {
-                policyString = await streamReader.ReadToEndAsync().ConfigureAwait(false);
-            }
-            return policyString;
+            GetPolicyArgs args = new GetPolicyArgs()
+                                            .WithBucket(bucketName);
+            return await this.GetPolicyAsync(args, cancellationToken);
         }
+
 
         /// <summary>
         /// Sets the current bucket policy
@@ -310,12 +405,10 @@ namespace Minio
         /// <returns>Task to set a policy</returns>
         public async Task SetPolicyAsync(string bucketName, string policyJson, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var request = await this.CreateRequest(Method.PUT, bucketName,
-                                           contentType: "application/json")
-                                .ConfigureAwait(false);
-            request.AddQueryParameter("policy","");
-            request.AddJsonBody(policyJson);
-            IRestResponse response = await this.ExecuteTaskAsync(this.NoErrorHandlers, request, cancellationToken).ConfigureAwait(false);
+            SetPolicyArgs args = new SetPolicyArgs()
+                                            .WithBucket(bucketName)
+                                            .WithPolicy(policyJson);
+            await this.SetPolicyAsync(args, cancellationToken);
         }
 
         /// <summary>
@@ -437,9 +530,7 @@ namespace Minio
                             cts.Token.ThrowIfCancellationRequested();
                         }
                     }
-
               });
-
         }
     }
 }

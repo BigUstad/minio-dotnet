@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
+using System.Xml.Linq;
 
 namespace Minio
 {
@@ -114,7 +115,11 @@ namespace Minio
             DateTime signingDate = DateTime.UtcNow;
             this.SetContentMd5(request);
             this.SetContentSha256(request);
-            this.SetHostHeader(request, client.BaseUrl.Host + ":" + client.BaseUrl.Port);
+            if (client.BaseUrl.Port == 80 || client.BaseUrl.Port == 443) {
+                this.SetHostHeader(request, client.BaseUrl.Host);
+            } else {
+                this.SetHostHeader(request, client.BaseUrl.Host + ":" + client.BaseUrl.Port);
+            }
             this.SetDateHeader(request, signingDate);
             this.SetSessionTokenHeader(request, this.sessionToken);
             SortedDictionary<string, string> headersToSign = this.GetHeadersToSign(request);
@@ -328,6 +333,10 @@ namespace Minio
 
             // Return presigned url.
             var signedUri = new UriBuilder(presignUri) {Query = $"{requestQuery}{headers}&X-Amz-Signature={signature}"};
+            if (signedUri.Uri.IsDefaultPort)
+            {
+               signedUri.Port = -1;
+            }
             return signedUri.ToString();
         }
 
@@ -397,22 +406,22 @@ namespace Minio
             }
             canonicalStringList.AddLast(path[0]);
             string query = string.Empty;
-            Dictionary<string,string> queryParams = new Dictionary<string,string>();
+            var queryParams = new List<KeyValuePair<string, string>>();
 
             foreach (var p in request.Parameters)
             {
                 if (p.Type == ParameterType.QueryString){
-                    queryParams.Add((string)p.Name, Uri.EscapeDataString((string)p.Value));
+                    queryParams.Add(new KeyValuePair<string, string>(p.Name, Uri.EscapeDataString((string)p.Value)));
                 } 
             }
             var sb1 = new StringBuilder();
-            var queryKeys = new List<string>(queryParams.Keys);
-            queryKeys.Sort(StringComparer.Ordinal);
-            foreach (var p in queryKeys)
+            queryParams = queryParams.OrderBy(_ => _.Key)
+                .ThenBy(_ => _.Value).ToList();
+            foreach (var p in queryParams)
             {
                 if (sb1.Length > 0)
                     sb1.Append("&");
-                sb1.AppendFormat("{0}={1}", p, queryParams[p]);
+                sb1.AppendFormat("{0}={1}", p.Key, p.Value);
             }
             query = sb1.ToString();
             canonicalStringList.AddLast(query);
@@ -553,8 +562,7 @@ namespace Minio
                 var isMultiDeleteRequest = false;
                 if (request.Method == Method.POST)
                 {
-                    var deleteParm = request.Parameters.Any(p => p.Name.Equals("delete",StringComparison.OrdinalIgnoreCase));
-                    isMultiDeleteRequest = !(deleteParm == null) || (deleteParm.Equals(null));
+                    isMultiDeleteRequest = request.Parameters.Any(p => p.Name.Equals("delete",StringComparison.OrdinalIgnoreCase));
                 }
 
                 // For insecure, authenticated requests set sha256 header instead of MD5.
@@ -565,6 +573,13 @@ namespace Minio
 
                 // All anonymous access requests get Content-MD5 header set.
                 byte[] body = null;
+                if (bodyParameter.Value is XElement)
+                {
+                    bodyParameter.DataFormat = DataFormat.None;
+                    // After next line bodyParameter.Value is string
+                    // and next if will be executed
+                    bodyParameter.Value = request.XmlSerializer.Serialize(bodyParameter.Value);
+                }
                 if (bodyParameter.Value is string)
                 {
                     body = System.Text.Encoding.UTF8.GetBytes(bodyParameter.Value as string);

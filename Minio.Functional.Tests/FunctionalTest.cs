@@ -48,6 +48,8 @@ namespace Minio.Functional.Tests
         private const string bucketExistsSignature = "Task<bool> BucketExistsAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))";
         private const string removeBucketSignature = "Task RemoveBucketAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))";
         private const string listObjectsSignature = "IObservable<Item> ListObjectsAsync(string bucketName, string prefix = null, bool recursive = false, CancellationToken cancellationToken = default(CancellationToken))";
+        private const string listObjectVersionsSignature = "IObservable<VersionItem> ListObjectVersionsAsync(ListObjectsArgs args, CancellationToken cancellationToken = default(CancellationToken))";
+
         private const string listIncompleteUploadsSignature = "IObservable<Upload> ListIncompleteUploads(string bucketName, string prefix, bool recursive, CancellationToken cancellationToken = default(CancellationToken))";
         private const string getObjectSignature1 = "Task GetObjectAsync(string bucketName, string objectName, Action<Stream> callback, CancellationToken cancellationToken = default(CancellationToken))";
         private const string getObjectSignature2 = "Task GetObjectAsync(string bucketName, string objectName, Action<Stream> callback, CancellationToken cancellationToken = default(CancellationToken))";
@@ -63,8 +65,8 @@ namespace Minio.Functional.Tests
         private const string presignedGetObjectSignature = "Task<string> PresignedGetObjectAsync(string bucketName, string objectName, int expiresInt, Dictionary<string, string> reqParams = null)";
         private const string presignedPutObjectSignature = "Task<string> PresignedPutObjectAsync(string bucketName, string objectName, int expiresInt)";
         private const string presignedPostPolicySignature = "Task<Dictionary<string, string>> PresignedPostPolicyAsync(PostPolicy policy)";
-        private const string getBucketPolicySignature = "Task<string> GetPolicyAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))";
-        private const string setBucketPolicySignature = "Task SetPolicyAsync(string bucketName, string policyJson, CancellationToken cancellationToken = default(CancellationToken))";
+        private const string getBucketPolicySignature = "Task<string> GetPolicyAsync(GetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))";
+        private const string setBucketPolicySignature = "Task SetPolicyAsync(SetPolicyArgs args, CancellationToken cancellationToken = default(CancellationToken))";
         private const string getBucketNotificationSignature = "Task<BucketNotification> GetBucketNotificationAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))";
         private const string setBucketNotificationSignature = "Task SetBucketNotificationAsync(string bucketName, BucketNotification notification, CancellationToken cancellationToken = default(CancellationToken))";
         private const string removeAllBucketsNotificationSignature = "Task RemoveAllBucketNotificationsAsync(string bucketName, CancellationToken cancellationToken = default(CancellationToken))";
@@ -169,6 +171,12 @@ namespace Minio.Functional.Tests
         {
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName();
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName);
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -176,10 +184,10 @@ namespace Minio.Functional.Tests
 
             try
             {
-                await minio.MakeBucketAsync(bucketName);
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
-                await minio.RemoveBucketAsync(bucketName);
+                await minio.RemoveBucketAsync(rbArgs);
                 new MintLogger(nameof(BucketExists_Test), bucketExistsSignature, "Tests whether BucketExists passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
             }
             catch (MinioException ex)
@@ -194,6 +202,12 @@ namespace Minio.Functional.Tests
         {
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName(length: 60);
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName);
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -202,10 +216,10 @@ namespace Minio.Functional.Tests
 
             try
             {
-                await minio.MakeBucketAsync(bucketName);
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
-                await minio.RemoveBucketAsync(bucketName);
+                await minio.RemoveBucketAsync(rbArgs);
                 new MintLogger(nameof(MakeBucket_Test1), makeBucketSignature, "Tests whether MakeBucket passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
             }
             catch (MinioException ex)
@@ -218,6 +232,12 @@ namespace Minio.Functional.Tests
         {
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName(length: 10) + ".withperiod";
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName);
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -227,10 +247,10 @@ namespace Minio.Functional.Tests
 
             try
             {
-                await minio.MakeBucketAsync(bucketName);
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
-                await minio.RemoveBucketAsync(bucketName);
+                await minio.RemoveBucketAsync(rbArgs);
                 new MintLogger(nameof(MakeBucket_Test2), makeBucketSignature, testType, TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
             }
             catch (MinioException ex)
@@ -245,6 +265,13 @@ namespace Minio.Functional.Tests
                 return;
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName(length: 60);
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                            .WithBucket(bucketName)
+                                            .WithLocation("eu-central-1");
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -252,13 +279,13 @@ namespace Minio.Functional.Tests
             };
             try
             {
-                await minio.MakeBucketAsync(bucketName, location: "eu-central-1");
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
                 if (found)
                 {
-                    await minio.MakeBucketAsync(bucketName);
-                    await minio.RemoveBucketAsync(bucketName);
+                    await minio.MakeBucketAsync(mbArgs);
+                    await minio.RemoveBucketAsync(rbArgs);
 
                 }
                 new MintLogger(nameof(MakeBucket_Test3), makeBucketSignature, "Tests whether MakeBucket with region passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
@@ -277,6 +304,13 @@ namespace Minio.Functional.Tests
                 return;
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName(length: 20) + ".withperiod";
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                            .WithBucket(bucketName)
+                                            .WithLocation("us-west-2");
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName); 
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -284,13 +318,12 @@ namespace Minio.Functional.Tests
             };
             try
             {
-                await minio.MakeBucketAsync(bucketName, location: "us-west-2");
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
                 if (found)
                 {
-                    await minio.RemoveBucketAsync(bucketName);
-
+                    await minio.RemoveBucketAsync(rbArgs);
                 }
                 new MintLogger(nameof(MakeBucket_Test4), makeBucketSignature, "Tests whether MakeBucket with region and bucketname with . passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
             }
@@ -313,12 +346,44 @@ namespace Minio.Functional.Tests
             try
             {
                 await Assert.ThrowsExceptionAsync<InvalidBucketNameException>(() =>
-                    minio.MakeBucketAsync(bucketName));
+                    minio.MakeBucketAsync(new MakeBucketArgs()
+                                                .WithBucket(bucketName)));
                 new MintLogger(nameof(MakeBucket_Test5), makeBucketSignature, "Tests whether MakeBucket throws InvalidBucketNameException when bucketName is null", TestStatus.PASS, (DateTime.Now - startTime), args: args).Log();
             }
             catch (MinioException ex)
             {
                 new MintLogger(nameof(MakeBucket_Test5), makeBucketSignature, "Tests whether MakeBucket throws InvalidBucketNameException when bucketName is null", TestStatus.FAIL, (DateTime.Now - startTime), "", ex.Message, ex.ToString(), args).Log();
+            }
+        }
+
+        internal async static Task MakeBucketLock_Test1(MinioClient minio)
+        {
+            DateTime startTime = DateTime.Now;
+            string bucketName = GetRandomName(length: 60);
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName)
+                                                .WithObjectLock();
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
+            var args = new Dictionary<string, string>
+            {
+                { "bucketName", bucketName },
+                { "region", "us-east-1" },
+            };
+
+            try
+            {
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
+                Assert.IsTrue(found);
+                await minio.RemoveBucketAsync(rbArgs);
+                new MintLogger(nameof(MakeBucket_Test1), makeBucketSignature, "Tests whether MakeBucket with Lock passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
+            }
+            catch (MinioException ex)
+            {
+                new MintLogger(nameof(MakeBucket_Test1), makeBucketSignature, "Tests whether MakeBucket with Lock passes", TestStatus.FAIL, (DateTime.Now - startTime), "", ex.Message, ex.ToString(), args).Log();
             }
         }
 
@@ -328,6 +393,12 @@ namespace Minio.Functional.Tests
         {
             DateTime startTime = DateTime.Now;
             string bucketName = GetRandomName(length: 20);
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName);
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
             var args = new Dictionary<string, string>
             {
                 { "bucketName", bucketName },
@@ -335,11 +406,11 @@ namespace Minio.Functional.Tests
 
             try
             {
-                await minio.MakeBucketAsync(bucketName);
-                bool found = await minio.BucketExistsAsync(bucketName);
+                await minio.MakeBucketAsync(mbArgs);
+                bool found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsTrue(found);
-                await minio.RemoveBucketAsync(bucketName);
-                found = await minio.BucketExistsAsync(bucketName);
+                await minio.RemoveBucketAsync(rbArgs);
+                found = await minio.BucketExistsAsync(beArgs);
                 Assert.IsFalse(found);
                 new MintLogger(nameof(RemoveBucket_Test1), removeBucketSignature, "Tests whether RemoveBucket passes", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
             }
@@ -371,14 +442,32 @@ namespace Minio.Functional.Tests
 
         internal async static Task Setup_Test(MinioClient minio, string bucketName)
         {
-            await minio.MakeBucketAsync(bucketName);
-            bool found = await minio.BucketExistsAsync(bucketName);
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName);
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            await minio.MakeBucketAsync(mbArgs);
+            bool found = await minio.BucketExistsAsync(beArgs);
+            Assert.IsTrue(found);
+        }
+
+        internal async static Task Setup_WithLock_Test(MinioClient minio, string bucketName)
+        {
+            MakeBucketArgs mbArgs = new MakeBucketArgs()
+                                                .WithBucket(bucketName)
+                                                .WithObjectLock();
+            BucketExistsArgs beArgs = new BucketExistsArgs()
+                                                .WithBucket(bucketName);
+            await minio.MakeBucketAsync(mbArgs);
+            bool found = await minio.BucketExistsAsync(beArgs);
             Assert.IsTrue(found);
         }
 
         internal async static Task TearDown(MinioClient minio, string bucketName)
         {
-            await minio.RemoveBucketAsync(bucketName);
+            RemoveBucketArgs rbArgs = new RemoveBucketArgs()
+                                                .WithBucket(bucketName);
+            await minio.RemoveBucketAsync(rbArgs);
         }
 
         #region Put Object
@@ -1974,22 +2063,88 @@ namespace Minio.Functional.Tests
             }
         }
 
-        internal async static Task ListObjects_Test(MinioClient minio, string bucketName, string prefix, int numObjects, bool recursive = true)
+
+        internal async static Task ListObjectVersions_Test1(MinioClient minio)
+        {
+            DateTime startTime = DateTime.Now;
+            string bucketName = GetRandomName(15);
+            string prefix = "minix";
+            string objectName = prefix + GetRandomName(10);
+            var args = new Dictionary<string, string>
+            {
+                { "bucketName", bucketName },
+                { "objectName", objectName },
+                { "prefix", prefix },
+                { "recursive", "false" },
+                { "versions", "true" }
+            };
+            try
+            {
+                await Setup_WithLock_Test(minio, bucketName);
+                Task[] tasks = new Task[4];
+                for (int i = 0; i < 4; i++) {
+                    tasks[i] = PutObject_Task(minio, bucketName, objectName + i.ToString(), null, null, 0, null, rsg.GenerateStreamFromSeed(1));
+                    tasks[i] = PutObject_Task(minio, bucketName, objectName + i.ToString(), null, null, 0, null, rsg.GenerateStreamFromSeed(1));
+                }
+                await Task.WhenAll(tasks);
+
+                ListObjects_Test(minio, bucketName, prefix, 2, false, true).Wait();
+                System.Threading.Thread.Sleep(2000);
+
+                await minio.RemoveObjectAsync(bucketName, objectName + "0");
+                await minio.RemoveObjectAsync(bucketName, objectName + "1");
+                await minio.RemoveObjectAsync(bucketName, objectName + "2");
+                await minio.RemoveObjectAsync(bucketName, objectName + "3");
+                await TearDown(minio, bucketName);
+                new MintLogger("ListObjectVersions_Test1", listObjectVersionsSignature, "Tests whether ListObjects with versions lists all objects along with all version ids for each object matching a prefix non-recursive", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
+            }
+            catch (MinioException ex)
+            {
+                new MintLogger("ListObjectVersions_Test1", listObjectVersionsSignature, "Tests whether ListObjects with versions lists all objects along with all version ids for each object matching a prefix non-recursive", TestStatus.FAIL, (DateTime.Now - startTime), "", ex.Message, ex.ToString(), args).Log();
+            }
+        }
+
+
+        internal async static Task ListObjects_Test(MinioClient minio, string bucketName, string prefix, int numObjects, bool recursive = true, bool versions = false)
         {
             DateTime startTime = DateTime.Now;
             int count = 0;
-            IObservable<Item> observable = minio.ListObjectsAsync(bucketName, prefix, recursive);
-            IDisposable subscription = observable.Subscribe(
-                item =>
-                {
-                    Assert.IsTrue(item.Key.StartsWith(prefix));
-                    count += 1;
-                },
-                ex => throw ex,
-                () =>
-                {
-                    Assert.AreEqual(count, numObjects);
-                });
+            ListObjectsArgs args = new ListObjectsArgs()
+                                            .WithBucket(bucketName)
+                                            .WithPrefix(prefix)
+                                            .WithRecursive(recursive)
+                                            .WithVersions(versions);
+            if (!versions)
+            {
+                IObservable<Item> observable = minio.ListObjectsAsync(args);
+                IDisposable subscription = observable.Subscribe(
+                    item =>
+                    {
+                        Assert.IsTrue(item.Key.StartsWith(prefix));
+                        count += 1;
+                    },
+                    ex => throw ex,
+                    () =>
+                    {
+                        Assert.AreEqual(count, numObjects);
+                    });
+                return;
+            }
+            else
+            {
+                IObservable<VersionItem> observable = minio.ListObjectVersionsAsync(args);
+                IDisposable subscription = observable.Subscribe(
+                    item =>
+                    {
+                        Assert.IsTrue(item.Key.StartsWith(prefix));
+                        count += 1;
+                    },
+                    ex => throw ex,
+                    () =>
+                    {
+                        Assert.AreEqual(count, numObjects);
+                    });
+            }
         }
 
         #endregion
@@ -2349,7 +2504,9 @@ namespace Minio.Functional.Tests
                 }
 
                 // Validate
-                string policy = await minio.GetPolicyAsync(bucketName);
+                var policyArgs = new GetPolicyArgs()
+                                            .WithBucket(bucketName);
+                string policy = await minio.GetPolicyAsync(policyArgs);
                 await minio.RemoveObjectAsync(bucketName, objectName);
                 await TearDown(minio, bucketName);
                 new MintLogger("PresignedPostPolicy_Test1", presignedPostPolicySignature, "Tests whether PresignedPostPolicy url applies policy on server", TestStatus.PASS, (DateTime.Now - startTime), args:args).Log();
@@ -2635,9 +2792,16 @@ namespace Minio.Functional.Tests
                     await minio.PutObjectAsync(bucketName,
                                                 objectName,
                                                 filestream, filestream.Length, null);
-                await minio.SetPolicyAsync(bucketName,
-                                    policyJson);
-                string policy = await minio.GetPolicyAsync(bucketName);
+                var setPolicyArgs = new SetPolicyArgs()
+                                            .WithBucket(bucketName)
+                                            .WithPolicy(policyJson);
+                var getPolicyArgs = new GetPolicyArgs()
+                                            .WithBucket(bucketName);
+                var rmPolicyArgs = new RemovePolicyArgs()
+                                            .WithBucket(bucketName);
+                await minio.SetPolicyAsync(setPolicyArgs);
+                string policy = await minio.GetPolicyAsync(getPolicyArgs);
+                await minio.RemovePolicyAsync(rmPolicyArgs);
                 await minio.RemoveObjectAsync(bucketName, objectName);
 
                 await TearDown(minio, bucketName);
